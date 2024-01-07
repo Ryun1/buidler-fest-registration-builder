@@ -1,5 +1,5 @@
 import React from 'react'
-import { Tab, Tabs, RadioGroup, Radio, FormGroup, InputGroup } from "@blueprintjs/core";
+import { RadioGroup, Radio, } from "@blueprintjs/core";
 import "../node_modules/@blueprintjs/core/lib/css/blueprint.css";
 import "../node_modules/@blueprintjs/icons/lib/css/blueprint-icons.css";
 import "../node_modules/normalize.css/normalize.css";
@@ -15,10 +15,11 @@ import {
     BigNum,
     TransactionWitnessSet,
     Transaction,
-    Credential,
-    PublicKey,
+    AuxiliaryData,
+    GeneralTransactionMetadata,
+    TransactionMetadatum,
+    BaseAddress,
     Ed25519KeyHash,
-    CertificatesBuilder,
 } from "@emurgo/cardano-serialization-lib-asmjs"
 import "./App.css";
 
@@ -31,7 +32,6 @@ class App extends React.Component {
         super(props);
 
         this.state = {
-            selectedTabId: "1",
             whichWalletSelected: undefined,
             walletFound: false,
             walletIsEnabled: false,
@@ -43,18 +43,25 @@ class App extends React.Component {
             Utxos: undefined,
             balance: undefined,
             changeAddress: undefined,
-            rewardAddress: undefined,
             usedAddress: undefined,
-            assetNameHex: "4c494645",
-            // CIP-95 Stuff
-            selected95MiscTabId: "1",
-            selectedCIP95: false,
             // Txs
             cip95ResultTx: "",
             cip95ResultHash: "",
             cip95ResultWitness: "",
             cip95MetadataURL: undefined,
             cip95MetadataHash: undefined,
+
+            // register for buidler fest
+            // addr1z8aj8fucpe9rnwxv52u4htyhe7h39txjf9pvzrfw0sdlzkun36yuhgl049rxhhuckm2lpq3rmz5dcraddyl45d6xgvqqwdcx5c
+            regAddress: "addr_test1qrqapfw03wxa0s3a7xgkxv5tnxsmd0ws7wmfuum3avks5cvpjxmycmp0w4y2hmrxe6y39uvumxw4ad8fajnej78h856s4juu3w",
+            // 300 ADA (300,000,000 lovelace)
+            regAmount: "300000000",
+            // Transaction metadatum label
+            regLabel: "98117105100108",
+            // Transaction metadatum text
+            regText: "Cardano Buidler Fest #1",
+            // wallets stake credential
+            stakeCred: undefined,
         }
 
         /**
@@ -144,13 +151,6 @@ class App extends React.Component {
             console.log(err);
         }
         return this.checkIfWalletEnabled();
-    }
-
-    getAPIVersion = () => {
-        const walletKey = this.state.whichWalletSelected;
-        const walletAPIVersion = window?.cardano?.[walletKey].apiVersion;
-        this.setState({walletAPIVersion})
-        return walletAPIVersion;
     }
 
     getWalletName = () => {
@@ -265,8 +265,8 @@ class App extends React.Component {
             Utxos: null,
             balance: null,
             changeAddress: null,
-            rewardAddress: null,
             usedAddress: null,
+            stakeCred: null,
         });
     }
 
@@ -290,6 +290,8 @@ class App extends React.Component {
                     await this.getBalance();
                     await this.getChangeAddress();
                     await this.getUsedAddresses();
+                    // Get the wallet's stake credential
+                    await this.getStakeCredFromUsedAddress();
                 // else if connection failed, reset all state
                 } else {
                     this.setState({walletIsEnabled: false})
@@ -338,58 +340,75 @@ class App extends React.Component {
         return txOutputs
     }
 
-    handleTab95Id = (tabId) => this.setState({selectedTab95Id: tabId})
-
-    buildSubmitConwayTx = async (builderSuccess) => {
+    getStakeCredFromUsedAddress = async () => {
         try {
-            // Abort if error before building Tx
-            if (!(await builderSuccess)){
-                throw "Error before building Tx, aborting Tx build."
-            }
+            const raw = await this.API.getUsedAddresses();
+            const rawFirst = raw[0];
+            const usedAddress = Address.from_bytes(Buffer.from(rawFirst, "hex")).to_bech32()
+            // get the stake credential from the used address
+            let stakeCred = BaseAddress.from_address(Address.from_bech32(usedAddress)).stake_cred().to_keyhash();
+            stakeCred = stakeCred.to_hex();
+            this.setState({stakeCred})
+
+        } catch (err) {
+            console.log(err)
+        }
+    }
+
+    buildSignSubmitReg = async () => {
+        try {
             // Initialize builder with protocol parameters
             const txBuilder = await this.initTransactionBuilder();
-            // Add certs, votes or gov actions to the transaction
-            if(this.state.certBuilder){
-                txBuilder.set_certs_builder(this.state.certBuilder);
-                this.setState({certBuilder : undefined});
-            }
-            if(this.state.votingBuilder){
-                txBuilder.set_voting_builder(this.state.votingBuilder);
-                this.setState({votingBuilder : undefined});
-            }
-            if(this.state.govActionBuilder){
-                txBuilder.set_voting_proposal_builder(this.state.govActionBuilder);
-                this.setState({govActionBuilder : undefined});
-            }
-            
-            // Set output and change addresses to those of our wallet
-            const shelleyOutputAddress = Address.from_bech32(this.state.usedAddress);
-            const shelleyChangeAddress = Address.from_bech32(this.state.changeAddress);
-            
-            // Add output of 3 ADA to the address of our wallet
-            // 3 is used incase of Stake key deposit refund
+
+            // Set address to send ada to
+            const registrationAddress = Address.from_bech32(this.state.regAddress);
+            // Set amount to send
+            const registrationAmount = Value.new(BigNum.from_str(this.state.regAmount));
+
+            // Set transactional metadatum message
+            const regMessageMetadatum = TransactionMetadatum.new_text(this.state.regText)
+            const regMessageMetadatumLabel = BigNum.from_str(this.state.regLabel)
+
+            // Create Tx metadata object and parse into auxiliary data
+            const txMetadata = (GeneralTransactionMetadata.new())
+            txMetadata.insert(regMessageMetadatumLabel, regMessageMetadatum);
+            const auxMetadata = AuxiliaryData.new()
+            auxMetadata.set_metadata(txMetadata);
+
+            // Add metadatum to transaction builder, so it can be included in the transaction balancing
+            txBuilder.set_auxiliary_data(auxMetadata)
+
+            // Add extra signature witness to transaction builder
+            txBuilder.add_required_signer(Ed25519KeyHash.from_hex(this.state.stakeCred));
+
+            // Add outputs to the transaction builder
             txBuilder.add_output(
                 TransactionOutput.new(
-                    shelleyOutputAddress,
-                    Value.new(BigNum.from_str("3000000"))
+                    registrationAddress,
+                    registrationAmount
                 ),
             );
+
             // Find the available UTxOs in the wallet and use them as Inputs for the transaction
             await this.getUtxos();
             const txUnspentOutputs = await this.getTxUnspentOutputs();
-            // Use UTxO selection strategy 2
-            txBuilder.add_inputs_from(txUnspentOutputs, 2)
+            // Use UTxO selection strategy RandomImproveMultiAsset aka 3
+            txBuilder.add_inputs_from(txUnspentOutputs, 3)
 
             // Set change address, incase too much ADA provided for fee
+            const shelleyChangeAddress = Address.from_bech32(this.state.changeAddress);
             txBuilder.add_change_if_needed(shelleyChangeAddress)
-            // Build transaction body
-            const txBody = txBuilder.build();
+
             // Make a full transaction, passing in empty witness set
+            const txBody = txBuilder.build();
             const transactionWitnessSet = TransactionWitnessSet.new();
             const tx = Transaction.new(
                 txBody,
                 TransactionWitnessSet.from_bytes(transactionWitnessSet.to_bytes()),
+                auxMetadata
             );
+
+            console.log("UnsignedTx: ", Buffer.from(tx.to_bytes(), "utf8").toString("hex"))
 
             // Ask wallet to to provide signature (witnesses) for the transaction
             let txVkeyWitnesses;
@@ -401,10 +420,11 @@ class App extends React.Component {
             const signedTx = Transaction.new(
                 tx.body(),
                 transactionWitnessSet,
+                tx.auxiliary_data(),
             );
             
-            console.log("SignedTx: ", Buffer.from(signedTx.to_bytes(), "utf8").toString("hex"))
-            // console.log("Signed Tx: ", signedTx.to_json());
+            // console.log("SignedTx: ", Buffer.from(signedTx.to_bytes(), "utf8").toString("hex"))
+            console.log("Signed Tx: ", signedTx.to_json());
             
             // Submit built signed transaction to chain, via wallet's submit transaction endpoint
             const result = await this.API.submitTx(Buffer.from(signedTx.to_bytes(), "utf8").toString("hex"));
@@ -436,6 +456,7 @@ class App extends React.Component {
         return (
             <div style={{margin: "20px"}}>
 
+                <h1>✨TEST✨</h1>  
                 <h1>✨builder fest registration builder dApp✨</h1>                
 
                 <div style={{paddingTop: "10px"}}>
@@ -456,30 +477,32 @@ class App extends React.Component {
                         )}
                     </RadioGroup>
                 </div>
-                <button style={{padding: "20px"}} onClick={this.refreshData}>Refresh</button> 
-                <hr style={{marginTop: "10px", marginBottom: "10px"}}/>
+                <button style={{padding: "20px"}} onClick={this.refreshData}>Refresh</button>
 
+                <hr style={{marginTop: "10px", marginBottom: "10px"}}/>
+                <h3>Wallet Info via CIP-30:</h3>
                 <p><span style={{fontWeight: "bold"}}>Network Id (0 = testnet; 1 = mainnet): </span>{this.state.networkId}</p>
                 <p><span style={{fontWeight: "bold"}}>.getUTxOs(): </span>{this.state.Utxos?.map(x => <li style={{fontSize: "10px"}} key={`${x.str}${x.multiAssetStr}`}>{`${x.str}${x.multiAssetStr}`}</li>)}</p>
                 <p><span style={{fontWeight: "bold"}}>.getBalance(): </span>{this.state.balance}</p>
                 <p><span style={{fontWeight: "bold"}}>.getChangeAddress(): </span>{this.state.changeAddress}</p>
+                <p><span style={{fontWeight: "bold"}}>.getUsedAddresses(): </span>{this.state.usedAddress}</p>
                 
-                <Tabs id="cip95-misc" vertical={true} onChange={this.handle95TabId} selectedTab95Id={this.state.selected95MiscTabId}>
-                    <Tab id="1" title=" 😎 Register for buidler fest" panel={
-                        <div style={{marginLeft: "20px"}}>
+                <hr style={{marginTop: "10px", marginBottom: "10px"}}/>
+                <h3>Registration Info:</h3>
+                <p><span style={{fontWeight: "bold"}}>Registration address: </span>{this.state.regAddress}</p>
+                <p><span style={{fontWeight: "bold"}}>Registration amount: </span>{this.state.regAmount}</p>
+                <p><span style={{fontWeight: "bold"}}>Registration metadatum label: </span>{this.state.regLabel}</p>
+                <p><span style={{fontWeight: "bold"}}>Registration metadatum text: </span>{this.state.regText}</p>
+                
+                <h3>Your ed25519 public key (or its blake2b-224 hash digest):</h3>
+                <p><span style={{fontWeight: "bold"}}>Wallet's stake credential (keyhash): </span>{this.state.stakeCred}</p>
 
-                            <button style={{padding: "10px"}} onClick={ () => this.buildSubmitConwayTx(true) }>Build, .signTx() and .submitTx()</button>
-
-                        </div>
-                    } />
-                    <Tabs.Expander />
-                </Tabs>
+                <button style={{padding: "10px"}} onClick={ () => this.buildSignSubmitReg() }>😎 Build, sign and submit buidler fest registration</button>
                 
                 <hr style={{marginTop: "10px", marginBottom: "10px"}}/>
 
                 <p><span style={{fontWeight: "bold"}}>CBORHex Tx: </span>{this.state.cip95ResultTx}</p>
                 <p><span style={{fontWeight: "bold"}}>Tx Hash: </span>{this.state.cip95ResultHash}</p>
-                <p><span style={{fontWeight: "bold"}}>Witnesses: </span>{this.state.cip95ResultWitness}</p>
 
                 <hr style={{marginTop: "10px", marginBottom: "10px"}}/>
 
