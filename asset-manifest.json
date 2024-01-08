@@ -1,21 +1,21 @@
 {
   "files": {
-    "main.css": "/builder-fest-registration-builder/static/css/main.934049be.css",
-    "main.js": "/builder-fest-registration-builder/static/js/main.76845c77.js",
-    "static/js/787.9b2a95a1.chunk.js": "/builder-fest-registration-builder/static/js/787.9b2a95a1.chunk.js",
-    "static/media/icons-20.eot": "/builder-fest-registration-builder/static/media/icons-20.cde033c5d3f24283f757.eot",
-    "static/media/icons-20.woff": "/builder-fest-registration-builder/static/media/icons-20.1ef633d3a28d0986f63e.woff",
-    "static/media/icons-20.ttf": "/builder-fest-registration-builder/static/media/icons-20.57b3e708b232fdcb64f9.ttf",
-    "static/media/icons-16.eot": "/builder-fest-registration-builder/static/media/icons-16.2368f88a078780d80145.eot",
-    "static/media/icons-16.woff": "/builder-fest-registration-builder/static/media/icons-16.1645f50fb7f7c109f64e.woff",
-    "static/media/icons-16.ttf": "/builder-fest-registration-builder/static/media/icons-16.13933033991f62d6bb64.ttf",
-    "index.html": "/builder-fest-registration-builder/index.html",
-    "main.934049be.css.map": "/builder-fest-registration-builder/static/css/main.934049be.css.map",
-    "main.76845c77.js.map": "/builder-fest-registration-builder/static/js/main.76845c77.js.map",
-    "787.9b2a95a1.chunk.js.map": "/builder-fest-registration-builder/static/js/787.9b2a95a1.chunk.js.map"
+    "main.css": "/buidler-fest-registration-builder/static/css/main.0fd2d284.css",
+    "main.js": "/buidler-fest-registration-builder/static/js/main.273ce378.js",
+    "static/js/787.a409c4fa.chunk.js": "/buidler-fest-registration-builder/static/js/787.a409c4fa.chunk.js",
+    "static/media/icons-20.eot": "/buidler-fest-registration-builder/static/media/icons-20.cde033c5d3f24283f757.eot",
+    "static/media/icons-20.woff": "/buidler-fest-registration-builder/static/media/icons-20.1ef633d3a28d0986f63e.woff",
+    "static/media/icons-20.ttf": "/buidler-fest-registration-builder/static/media/icons-20.57b3e708b232fdcb64f9.ttf",
+    "static/media/icons-16.eot": "/buidler-fest-registration-builder/static/media/icons-16.2368f88a078780d80145.eot",
+    "static/media/icons-16.woff": "/buidler-fest-registration-builder/static/media/icons-16.1645f50fb7f7c109f64e.woff",
+    "static/media/icons-16.ttf": "/buidler-fest-registration-builder/static/media/icons-16.13933033991f62d6bb64.ttf",
+    "index.html": "/buidler-fest-registration-builder/index.html",
+    "main.0fd2d284.css.map": "/buidler-fest-registration-builder/static/css/main.0fd2d284.css.map",
+    "main.273ce378.js.map": "/buidler-fest-registration-builder/static/js/main.273ce378.js.map",
+    "787.a409c4fa.chunk.js.map": "/buidler-fest-registration-builder/static/js/787.a409c4fa.chunk.js.map"
   },
   "entrypoints": [
-    "static/css/main.934049be.css",
-    "static/js/main.76845c77.js"
+    "static/css/main.0fd2d284.css",
+    "static/js/main.273ce378.js"
   ]
 }
