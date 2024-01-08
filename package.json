@@ -1,6 +1,6 @@
 {
-  "homepage": "http://ryun1.github.io/builder-fest-registration-builder",
-  "name": "builder-fest-registration-builder",
+  "homepage": "http://ryun1.github.io/buidler-fest-registration-builder",
+  "name": "buidler-fest-registration-builder",
   "version": "1.0.0",
   "private": true,
   "dependencies": {

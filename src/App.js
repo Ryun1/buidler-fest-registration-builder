@@ -53,7 +53,7 @@ class App extends React.Component {
 
             // register for buidler fest
             // addr1z8aj8fucpe9rnwxv52u4htyhe7h39txjf9pvzrfw0sdlzkun36yuhgl049rxhhuckm2lpq3rmz5dcraddyl45d6xgvqqwdcx5c
-            regAddress: "addr_test1qrqapfw03wxa0s3a7xgkxv5tnxsmd0ws7wmfuum3avks5cvpjxmycmp0w4y2hmrxe6y39uvumxw4ad8fajnej78h856s4juu3w",
+            regAddress: "addr1z8aj8fucpe9rnwxv52u4htyhe7h39txjf9pvzrfw0sdlzkun36yuhgl049rxhhuckm2lpq3rmz5dcraddyl45d6xgvqqwdcx5c",
             // 300 ADA (300,000,000 lovelace)
             regAmount: "300000000",
             // Transaction metadatum label
@@ -62,6 +62,8 @@ class App extends React.Component {
             regText: "Cardano Buidler Fest #1",
             // wallets stake credential
             stakeCred: undefined,
+            // wallets payment credential
+            paymentCredential: undefined,
         }
 
         /**
@@ -267,6 +269,7 @@ class App extends React.Component {
             changeAddress: null,
             usedAddress: null,
             stakeCred: null,
+            paymentCredential: null,
         });
     }
 
@@ -292,6 +295,7 @@ class App extends React.Component {
                     await this.getUsedAddresses();
                     // Get the wallet's stake credential
                     await this.getStakeCredFromUsedAddress();
+                    await this.getPaymentCredFromChangeAddress();
                 // else if connection failed, reset all state
                 } else {
                     this.setState({walletIsEnabled: false})
@@ -355,6 +359,20 @@ class App extends React.Component {
         }
     }
 
+    getPaymentCredFromChangeAddress = async () => {
+        try {
+            const rawAddress = await this.API.getChangeAddress();
+            const changeAddress = Address.from_bytes(Buffer.from(rawAddress, "hex")).to_bech32()
+            // get the payment credential from the change address
+            let paymentCred = BaseAddress.from_address(Address.from_bech32(changeAddress)).payment_cred().to_keyhash();
+            paymentCred = paymentCred.to_hex();
+            this.setState({paymentCred})
+
+        } catch (err) {
+            console.log(err)
+        }
+    }
+
     buildSignSubmitReg = async () => {
         try {
             // Initialize builder with protocol parameters
@@ -379,7 +397,7 @@ class App extends React.Component {
             txBuilder.set_auxiliary_data(auxMetadata)
 
             // Add extra signature witness to transaction builder
-            txBuilder.add_required_signer(Ed25519KeyHash.from_hex(this.state.stakeCred));
+            // txBuilder.add_required_signer(Ed25519KeyHash.from_hex(this.state.stakeCred));
 
             // Add outputs to the transaction builder
             txBuilder.add_output(
@@ -432,13 +450,11 @@ class App extends React.Component {
             // Set results so they can be rendered
             const cip95ResultTx = Buffer.from(signedTx.to_bytes(), "utf8").toString("hex");
             const cip95ResultHash = result;
-            const cip95ResultWitness = Buffer.from(txVkeyWitnesses.to_bytes(), "utf8").toString("hex");
+            const cip95ResultWitness = Buffer.from(transactionWitnessSet.to_bytes(), "utf8").toString("hex");
+            console.log("cip95ResultWitness: ", cip95ResultWitness)
             this.setState({cip95ResultTx});
             this.setState({cip95ResultHash});
             this.setState({cip95ResultWitness});
-            // Reset anchor state
-            this.setState({cip95MetadataURL : undefined});
-            this.setState({cip95MetadataHash : undefined});
 
         } catch (err) {
             console.log("Error during build, sign and submit transaction");
@@ -456,8 +472,7 @@ class App extends React.Component {
         return (
             <div style={{margin: "20px"}}>
 
-                <h1>✨TEST✨</h1>  
-                <h1>✨builder fest registration builder dApp✨</h1>                
+                <h1>✨buidler fest registration builder dApp✨</h1>                
 
                 <div style={{paddingTop: "10px"}}>
                     <RadioGroup
@@ -494,8 +509,9 @@ class App extends React.Component {
                 <p><span style={{fontWeight: "bold"}}>Registration metadatum label: </span>{this.state.regLabel}</p>
                 <p><span style={{fontWeight: "bold"}}>Registration metadatum text: </span>{this.state.regText}</p>
                 
-                <h3>Your ed25519 public key (or its blake2b-224 hash digest):</h3>
-                <p><span style={{fontWeight: "bold"}}>Wallet's stake credential (keyhash): </span>{this.state.stakeCred}</p>
+                <h3>"Your ed25519 public key (or its blake2b-224 hash digest)":</h3>
+                {/* <p><span style={{fontWeight: "bold"}}>Wallet's stake credential (keyhash): </span>{this.state.stakeCred}</p> */}
+                <p><span style={{fontWeight: "bold"}}>Change address' payment credential (keyhash): </span>{this.state.paymentCred}</p>
 
                 <button style={{padding: "10px"}} onClick={ () => this.buildSignSubmitReg() }>😎 Build, sign and submit buidler fest registration</button>
                 
