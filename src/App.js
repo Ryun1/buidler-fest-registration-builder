@@ -397,7 +397,7 @@ class App extends React.Component {
             txBuilder.set_auxiliary_data(auxMetadata)
 
             // Add extra signature witness to transaction builder
-            // txBuilder.add_required_signer(Ed25519KeyHash.from_hex(this.state.stakeCred));
+            txBuilder.add_required_signer(Ed25519KeyHash.from_hex(this.state.stakeCred));
 
             // Add outputs to the transaction builder
             txBuilder.add_output(
@@ -510,8 +510,8 @@ class App extends React.Component {
                 <p><span style={{fontWeight: "bold"}}>Registration metadatum text: </span>{this.state.regText}</p>
                 
                 <h3>"Your ed25519 public key (or its blake2b-224 hash digest)":</h3>
-                {/* <p><span style={{fontWeight: "bold"}}>Wallet's stake credential (keyhash): </span>{this.state.stakeCred}</p> */}
-                <p><span style={{fontWeight: "bold"}}>Change address' payment credential (keyhash): </span>{this.state.paymentCred}</p>
+                <p><span style={{fontWeight: "bold"}}>Wallet's stake credential (keyhash): </span>{this.state.stakeCred}</p>
+                {/* <p><span style={{fontWeight: "bold"}}>Change address' payment credential (keyhash): </span>{this.state.paymentCred}</p> */}
 
                 <button style={{padding: "10px"}} onClick={ () => this.buildSignSubmitReg() }>😎 Build, sign and submit buidler fest registration</button>
                 
