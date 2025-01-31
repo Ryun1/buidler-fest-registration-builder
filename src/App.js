@@ -1,5 +1,5 @@
 import React from 'react'
-import { RadioGroup, Radio, } from "@blueprintjs/core";
+import { RadioGroup, Radio, FormGroup, InputGroup } from "@blueprintjs/core";
 import "../node_modules/@blueprintjs/core/lib/css/blueprint.css";
 import "../node_modules/@blueprintjs/icons/lib/css/blueprint-icons.css";
 import "../node_modules/normalize.css/normalize.css";
@@ -15,11 +15,15 @@ import {
     BigNum,
     TransactionWitnessSet,
     Transaction,
-    AuxiliaryData,
-    GeneralTransactionMetadata,
-    TransactionMetadatum,
-    BaseAddress,
     Ed25519KeyHash,
+    BaseAddress,
+    CertificatesBuilder,
+    DRep,
+    VoteDelegation,
+    Certificate,
+    ExUnitPrices,
+    UnitInterval,
+    Credential,
 } from "@emurgo/cardano-serialization-lib-asmjs"
 import "./App.css";
 
@@ -51,19 +55,15 @@ class App extends React.Component {
             cip95MetadataURL: undefined,
             cip95MetadataHash: undefined,
 
-            // register for buidler fest
-            // addr1z8aj8fucpe9rnwxv52u4htyhe7h39txjf9pvzrfw0sdlzkun36yuhgl049rxhhuckm2lpq3rmz5dcraddyl45d6xgvqqwdcx5c
-            regAddress: "addr1z8aj8fucpe9rnwxv52u4htyhe7h39txjf9pvzrfw0sdlzkun36yuhgl049rxhhuckm2lpq3rmz5dcraddyl45d6xgvqqwdcx5c",
-            // 300 ADA (300,000,000 lovelace)
-            regAmount: "300000000",
-            // Transaction metadatum label
-            regLabel: "98117105100108",
-            // Transaction metadatum text
-            regText: "Cardano Buidler Fest #1",
+            // register for buidler fest 2
+            // addr1zyzpenlg0vywj7zdh9dzdeggaer94zvckfncv9c3886c36yafhxhu32dys6pvn6wlw8dav6cmp4pmtv7cc3yel9uu0nqhcjd29
+            regAddress: "addr1zyzpenlg0vywj7zdh9dzdeggaer94zvckfncv9c3886c36yafhxhu32dys6pvn6wlw8dav6cmp4pmtv7cc3yel9uu0nqhcjd29",
+            // 150 ADA (150,000,000 lovelace)
+            regAmount: "150000000",
             // wallets stake credential
             stakeCred: undefined,
-            // wallets payment credential
-            paymentCredential: undefined,
+            // delegation target
+            voteDelegationTarget: "",
         }
 
         /**
@@ -78,14 +78,14 @@ class App extends React.Component {
                 minFeeA: "44",
                 minFeeB: "155381",
             },
-            minUtxo: "34482",
+            minUtxo: "1000000",
             poolDeposit: "500000000",
             keyDeposit: "2000000",
             maxValSize: 5000,
             maxTxSize: 16384,
             priceMem: 0.0577,
             priceStep: 0.0000721,
-            coinsPerUtxoWord: "34482",
+            coinsPerUTxOByte: "4310",
         }
         this.pollWallets = this.pollWallets.bind(this);
     }
@@ -270,6 +270,7 @@ class App extends React.Component {
             usedAddress: null,
             stakeCred: null,
             paymentCredential: null,
+            voteDelegationTarget: "",
         });
     }
 
@@ -323,10 +324,16 @@ class App extends React.Component {
                 .fee_algo(LinearFee.new(BigNum.from_str(this.protocolParams.linearFee.minFeeA), BigNum.from_str(this.protocolParams.linearFee.minFeeB)))
                 .pool_deposit(BigNum.from_str(this.protocolParams.poolDeposit))
                 .key_deposit(BigNum.from_str(this.protocolParams.keyDeposit))
-                .coins_per_utxo_word(BigNum.from_str(this.protocolParams.coinsPerUtxoWord))
+                .coins_per_utxo_byte(BigNum.from_str(this.protocolParams.coinsPerUTxOByte))
                 .max_value_size(this.protocolParams.maxValSize)
                 .max_tx_size(this.protocolParams.maxTxSize)
                 .prefer_pure_change(true)
+                .ex_unit_prices(
+                    ExUnitPrices.new(
+                        UnitInterval.new(BigNum.from_str("577"),BigNum.from_str("10000")), 
+                        UnitInterval.new(BigNum.from_str("721"),BigNum.from_str("10000000"))
+                    )
+                )
                 .build()
         );
         return txBuilder
@@ -373,6 +380,49 @@ class App extends React.Component {
         }
     }
 
+    handleInputToCredential = async (input) => {
+        try {
+          const keyHash = Ed25519KeyHash.from_hex(input);
+          const cred = Credential.from_keyhash(keyHash);
+          return cred;
+        } catch (err1) {
+          try {
+            const keyHash = Ed25519KeyHash.from_bech32(input);
+            const cred = Credential.from_keyhash(keyHash);
+            return cred;
+          } catch (err2) {
+            console.error('Error in parsing credential, not Hex or Bech32:');
+            console.error(err1, err2);
+            return null;
+          }
+        }
+    }
+
+    buildVoteDelegationCert = async () => {
+        console.log("Adding vote delegation cert to transaction")
+        try {
+            const stakeCred = Credential.from_keyhash(Ed25519KeyHash.from_hex(this.state.stakeCred));
+            // Create correct DRep
+            let targetDRep
+            if ((this.state.voteDelegationTarget).toUpperCase() === 'ABSTAIN') {
+                targetDRep = DRep.new_always_abstain();
+            } else if ((this.state.voteDelegationTarget).toUpperCase() === 'NO CONFIDENCE') {
+                targetDRep = DRep.new_always_no_confidence();
+            } else {
+                const dRepKeyCred = await this.handleInputToCredential(this.state.voteDelegationTarget);           
+                targetDRep = DRep.new_key_hash(dRepKeyCred.to_keyhash());
+            };
+            // Create cert object
+            const voteDelegationCert = VoteDelegation.new(stakeCred, targetDRep);
+            // add cert to certBuilder
+            return Certificate.new_vote_delegation(voteDelegationCert)
+        } catch (err) {
+            console.log(err);
+            return false;
+        }
+    }
+
+
     buildSignSubmitReg = async () => {
         try {
             // Initialize builder with protocol parameters
@@ -383,21 +433,11 @@ class App extends React.Component {
             // Set amount to send
             const registrationAmount = Value.new(BigNum.from_str(this.state.regAmount));
 
-            // Set transactional metadatum message
-            const regMessageMetadatum = TransactionMetadatum.new_text(this.state.regText)
-            const regMessageMetadatumLabel = BigNum.from_str(this.state.regLabel)
-
-            // Create Tx metadata object and parse into auxiliary data
-            const txMetadata = (GeneralTransactionMetadata.new())
-            txMetadata.insert(regMessageMetadatumLabel, regMessageMetadatum);
-            const auxMetadata = AuxiliaryData.new()
-            auxMetadata.set_metadata(txMetadata);
-
-            // Add metadatum to transaction builder, so it can be included in the transaction balancing
-            txBuilder.set_auxiliary_data(auxMetadata)
-
-            // Add extra signature witness to transaction builder
-            txBuilder.add_required_signer(Ed25519KeyHash.from_hex(this.state.stakeCred));
+            // Create DRep delegation cert
+            let certBuilder = CertificatesBuilder.new()
+            certBuilder.add(await this.buildVoteDelegationCert());
+            // add to txbuilder
+            txBuilder.set_certs_builder(certBuilder);
 
             // Add outputs to the transaction builder
             txBuilder.add_output(
@@ -423,7 +463,6 @@ class App extends React.Component {
             const tx = Transaction.new(
                 txBody,
                 TransactionWitnessSet.from_bytes(transactionWitnessSet.to_bytes()),
-                auxMetadata
             );
 
             console.log("UnsignedTx: ", Buffer.from(tx.to_bytes(), "utf8").toString("hex"))
@@ -438,7 +477,6 @@ class App extends React.Component {
             const signedTx = Transaction.new(
                 tx.body(),
                 transactionWitnessSet,
-                tx.auxiliary_data(),
             );
             
             // console.log("SignedTx: ", Buffer.from(signedTx.to_bytes(), "utf8").toString("hex"))
@@ -472,7 +510,7 @@ class App extends React.Component {
         return (
             <div style={{margin: "20px"}}>
 
-                <h1>✨buidler fest registration builder dApp✨</h1>                
+                <h1>✨buidler fest 2 registration builder dApp✨</h1>                
 
                 <div style={{paddingTop: "10px"}}>
                     <RadioGroup
@@ -503,14 +541,22 @@ class App extends React.Component {
                 <p><span style={{fontWeight: "bold"}}>.getUsedAddresses(): </span>{this.state.usedAddress}</p>
                 
                 <hr style={{marginTop: "10px", marginBottom: "10px"}}/>
-                <h3>Registration Info:</h3>
-                <p><span style={{fontWeight: "bold"}}>Registration address: </span>{this.state.regAddress}</p>
-                <p><span style={{fontWeight: "bold"}}>Registration amount: </span>{this.state.regAmount}</p>
-                <p><span style={{fontWeight: "bold"}}>Registration metadatum label: </span>{this.state.regLabel}</p>
-                <p><span style={{fontWeight: "bold"}}>Registration metadatum text: </span>{this.state.regText}</p>
-                
-                <h3>"Your ed25519 public key (or its blake2b-224 hash digest)":</h3>
-                <p><span style={{fontWeight: "bold"}}>Wallet's stake credential (keyhash): </span>{this.state.stakeCred}</p>
+                <h3>Registration Info - https://buidlerfest.github.io/register/</h3>
+                <p><span style={{fontWeight: "bold"}}>Registration address (where sending money too): </span>{this.state.regAddress}</p>
+                <p><span style={{fontWeight: "bold"}}>Registration/ticket amount: </span>{this.state.regAmount}</p>
+
+                <FormGroup
+                    helperText="CIP-105 DRep ID | abstain | no confidence"
+                    label="DRep to delegate to:"
+                >
+                <InputGroup
+                    disabled={false}
+                    onChange={(event) => this.setState({voteDelegationTarget: event.target.value})}
+                    value={this.state.voteDelegationTarget}
+                />
+                </FormGroup>
+
+                {/* <p><span style={{fontWeight: "bold"}}>Wallet's stake credential (keyhash): </span>{this.state.stakeCred}</p> */}
                 {/* <p><span style={{fontWeight: "bold"}}>Change address' payment credential (keyhash): </span>{this.state.paymentCred}</p> */}
 
                 <button style={{padding: "10px"}} onClick={ () => this.buildSignSubmitReg() }>😎 Build, sign and submit buidler fest registration</button>
