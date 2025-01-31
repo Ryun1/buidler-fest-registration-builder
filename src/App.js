@@ -387,7 +387,6 @@ class App extends React.Component {
           return cred;
         } catch (err1) {
           try {
-            console.log('HERE', input);
             const keyHash = Ed25519KeyHash.from_bech32(input);
             const cred = Credential.from_keyhash(keyHash);
             return cred;
@@ -402,7 +401,7 @@ class App extends React.Component {
     buildVoteDelegationCert = async () => {
         console.log("Adding vote delegation cert to transaction")
         try {
-            const stakeCred = Credential.from_hex(this.state.stakeCred);
+            const stakeCred = Credential.from_keyhash(Ed25519KeyHash.from_hex(this.state.stakeCred));
             // Create correct DRep
             let targetDRep
             if ((this.state.voteDelegationTarget).toUpperCase() === 'ABSTAIN') {
@@ -410,13 +409,8 @@ class App extends React.Component {
             } else if ((this.state.voteDelegationTarget).toUpperCase() === 'NO CONFIDENCE') {
                 targetDRep = DRep.new_always_no_confidence();
             } else {
-                const lol2 = Ed25519KeyHash.from_hex(this.state.voteDelegationTarget)
-                
-                const lol = Credential.from_keyhash(lol2);
-
-                //const dRepKeyCred = await this.handleInputToCredential("drep1jnmmkfwpta0yuwjchw0gu6csh75vy62088egy9n67d0zc7sn83m");
-                //console.log("idk2", dRepKeyCred.to_hex())                
-                targetDRep = DRep.new_key_hash(lol.to_keyhash());
+                const dRepKeyCred = await this.handleInputToCredential(this.state.voteDelegationTarget);           
+                targetDRep = DRep.new_key_hash(dRepKeyCred.to_keyhash());
             };
             // Create cert object
             const voteDelegationCert = VoteDelegation.new(stakeCred, targetDRep);
@@ -441,7 +435,7 @@ class App extends React.Component {
 
             // Create DRep delegation cert
             let certBuilder = CertificatesBuilder.new()
-            certBuilder.add(this.buildVoteDelegationCert());
+            certBuilder.add(await this.buildVoteDelegationCert());
             // add to txbuilder
             txBuilder.set_certs_builder(certBuilder);
 
